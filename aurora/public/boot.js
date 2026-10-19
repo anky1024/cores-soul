@@ -37,9 +37,11 @@
   ];
   document.getElementById('lib-list').innerHTML = PLAYLISTS.map(([id, n]) => `<div class="lib-item" data-pl="${id}">${n}</div>`).join('');
   document.querySelectorAll('.lib-item').forEach(el => el.onclick = async () => {
-    const tracks = await A.rpc('playlistGet', { id: el.dataset.pl });
-    NowPlaying.playList(tracks, 0);
-    showLibrary(el.textContent, tracks);
+    setActive('library');
+    const view = document.getElementById('view');
+    view.innerHTML = '<div class="spinner"></div>';
+    const [meta, tracks] = [await A.rpc('playlistGetMeta', { id: el.dataset.pl }), await A.rpc('playlistGet', { id: el.dataset.pl })];
+    SearchRoute.showPlaylistDetail(meta, tracks);
   });
 
   function setActive(route) {

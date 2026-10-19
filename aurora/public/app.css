@@ -104,3 +104,17 @@ h2.section { font-size: 22px; margin: 26px 0 14px; }
 .vol .pfill { width: 70%; }
 
 @media (max-width: 800px) { #app { grid-template-columns: 72px 1fr; } .nav .label, .logo span { display: none; } }
+
+/* ---------- detail pages (artist / album / playlist) ---------- */
+.detail-header { display: flex; align-items: flex-end; gap: 24px; padding: 48px 0 24px; }
+.detail-cover { width: 180px; height: 180px; border-radius: 8px; flex: 0 0 auto; box-shadow: 0 8px 32px rgba(0,0,0,.5); }
+.detail-kicker { text-transform: uppercase; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--sub); margin-bottom: 8px; }
+.detail-title { font-size: 56px; font-weight: 900; line-height: 1.05; margin: 0 0 12px; }
+.detail-meta { color: var(--sub); font-size: 14px; }
+.detail-actions { display: flex; align-items: center; gap: 18px; margin: 20px 0 8px; }
+.big-play { width: 56px; height: 56px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; transition: .2s; box-shadow: 0 6px 16px rgba(0,0,0,.4); }
+.big-play:hover { transform: scale(1.05); background: var(--accent-hover); }
+.big-play svg { width: 24px; height: 24px; fill: #000; }
+.trow.playing > div:first-child, .trow.playing .tname > div:last-child > div:first-child { color: var(--accent); }
+.card { cursor: pointer; }
+.browse { cursor: pointer; }

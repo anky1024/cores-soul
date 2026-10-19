@@ -75,25 +75,87 @@
     view.querySelectorAll('.tab').forEach(b => b.onclick = () => {
       currentTab = b.dataset.tab; A.track('search.tab', { tab: currentTab, query: lastResults.query }); render();
     });
-    view.querySelectorAll('.card .playfab, .card').forEach(el => {
-      el.onclick = async (e) => {
-        const card = el.closest('.card');
+    view.querySelectorAll('.card').forEach(card => {
+      card.onclick = async () => {
         const id = card.dataset.id, type = card.dataset.type;
         A.track('search.result.click', { uri: card.dataset.uri });
-        // play a related list via dealer RPC
-        let tracks = [];
-        if (type === 'track') tracks = items.filter(i => i.type === 'track');
-        else if (type === 'playlist') tracks = await A.rpc('playlistGet', { id });
-        else if (type === 'album') tracks = items.filter(i => i.type === 'track' && i.album === card.querySelector('.title').textContent);
-        else if (type === 'artist') tracks = (await A.rpc('searchV3', { query: card.querySelector('.title').textContent, types: ['track'] })) || [];
-        if (!tracks.length) tracks = [{ id, name: card.querySelector('.title').textContent, duration_ms: 180000, artists: ['—'] }];
-        NowPlaying.playList(tracks, 0);
+        openDetail(type, id);
       };
     });
     view.querySelectorAll('.trow[data-idx]').forEach(row => row.onclick = () => {
       const tracks = items.filter(i => i.type === 'track');
       NowPlaying.playList(tracks, +row.dataset.idx);
     });
+  }
+
+  // ---------- detail pages (artist / album / playlist), fetched over dealer RPC ----------
+  async function openDetail(type, id) {
+    view.innerHTML = '<div class="spinner"></div>';
+    try {
+      if (type === 'artist') {
+        const artist = await A.rpc('artistGet', { id });
+        const tracks = await A.rpc('artistTopTracks', { id });
+        showArtist(artist, tracks);
+      } else if (type === 'album') {
+        const album = await A.rpc('albumGet', { id });
+        const tracks = await A.rpc('albumTracks', { id });
+        showAlbum(album, tracks);
+      } else if (type === 'playlist') {
+        const pl = await A.rpc('playlistGetMeta', { id });
+        const tracks = await A.rpc('playlistGet', { id });
+        showPlaylist(pl, tracks);
+      } else {
+        // track card: queue the surrounding search results and play it
+        const res = await A.rpc('searchV3', { query: cardName(id), types: [] });
+        const tracks = res.all.tracks.items;
+        const idx = Math.max(0, tracks.findIndex(t => t.id === id));
+        NowPlaying.playList(tracks, idx);
+        render();
+      }
+    } catch (err) {
+      view.innerHTML = `<div class="empty">Dealer error: ${A.esc(err.message)}</div>`;
+    }
+  }
+  function cardName(id) {
+    const c = document.querySelector(`.card[data-id="${id}"]`);
+    return c ? c.querySelector('.title').textContent : '';
+  }
+
+  function headerHTML(seedStr, kicker, title, meta) {
+    return `<div class="detail-header" style="${A.coverStyle(seedStr)}">
+      <div class="detail-cover" style="${A.coverStyle(seedStr)}"></div>
+      <div><div class="detail-kicker">${kicker}</div><h1 class="detail-title">${A.esc(title)}</h1><div class="detail-meta">${meta}</div></div></div>`;
+  }
+  function trackRows(tracks) {
+    return `<div class="tracklist head-row trow" style="border-bottom:1px solid #282828">
+      <div class="num">#</div><div>Title</div><div>Album</div><div>Pop</div><div class="dur">Time</div></div>
+      <div class="tracklist">${tracks.map(trackRowHTML).join('')}</div>`;
+  }
+  function wireTrackRows(tracks) {
+    view.querySelectorAll('.trow[data-idx]').forEach(row => row.onclick = () => NowPlaying.playList(tracks, +row.dataset.idx));
+    const pb = view.querySelector('.big-play');
+    if (pb) pb.onclick = () => { if (tracks.length) NowPlaying.playList(tracks, 0); };
+  }
+
+  function showArtist(a, tracks) {
+    view.innerHTML = `${headerHTML(a.id, 'Artist', a.name, `${Number(a.listeners).toLocaleString()} monthly listeners`)}
+      <div class="detail-actions"><button class="big-play">${A.ICONS.play}</button></div>
+      <h2 class="section">Popular</h2>${trackRows(tracks)}`;
+    wireTrackRows(tracks);
+    history.replaceState(null, '', '/search/' + encodeURIComponent(lastResults?.query || ''));
+  }
+  function showAlbum(al, tracks) {
+    view.innerHTML = `${headerHTML(al.id, al.kind === 'single' ? 'Single' : 'Album', al.name,
+      `${A.esc(al.artist_name)} · ${al.year}`)}
+      <div class="detail-actions"><button class="big-play">${A.ICONS.play}</button></div>
+      <h2 class="section">Tracks</h2>${trackRows(tracks)}`;
+    wireTrackRows(tracks);
+  }
+  function showPlaylist(p, tracks) {
+    view.innerHTML = `${headerHTML(p.id, 'Playlist', p.name, `${A.esc(p.description)} · ${tracks.length} songs`)}
+      <div class="detail-actions"><button class="big-play">${A.ICONS.play}</button></div>
+      <h2 class="section">All tracks</h2>${trackRows(tracks)}`;
+    wireTrackRows(tracks);
   }
 
   function browseEmpty() {
@@ -138,6 +200,10 @@
       });
       const initial = decodeURIComponent(location.pathname.split('/search/')[1] || '');
       if (initial) { inp.value = initial; doSearch(initial); } else render();
+    },
+    showPlaylistDetail(meta, tracks) {
+      window.view = document.getElementById('view');
+      showPlaylist(meta, tracks);
     },
     search: doSearch,
   };

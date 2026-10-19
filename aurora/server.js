@@ -102,14 +102,39 @@ function handleRpc(ws, msg) {
       const types = (args.types || []).filter(Boolean);
       if (!types.length) return reply(r.all); // client expects the full multi-section payload
       const key = { artist: 'artists', track: 'tracks', album: 'albums', playlist: 'playlists', top: 'top' }[types[0]];
-      reply({ query: r.query, section: types[0], data: key ? r.all[key] : [] });
+      const data = key ? r.all[key] : [];
+      reply({ query: r.query, section: types[0], data });
       break;
     }
     case 'recentsForUser':
-      reply(db.prepare('SELECT * FROM tracks ORDER BY popularity DESC LIMIT 12').all());
+      reply(db.prepare(`SELECT t.*, ar.name artist_name FROM tracks t
+        JOIN albums a ON a.id=t.album_id JOIN artists ar ON ar.id=a.artist_id
+        ORDER BY t.popularity DESC LIMIT 12`).all());
       break;
     case 'playlistGet':
-      reply(db.prepare(`SELECT t.* FROM playlist_tracks pt JOIN tracks t ON t.id=pt.track_id WHERE pt.playlist_id=?`).all(args.id));
+      reply(db.prepare(`SELECT t.*, ar.name artist_name FROM playlist_tracks pt
+        JOIN tracks t ON t.id=pt.track_id JOIN albums a ON a.id=t.album_id JOIN artists ar ON ar.id=a.artist_id
+        WHERE pt.playlist_id=?`).all(args.id));
+      break;
+    case 'playlistGetMeta':
+      reply(db.prepare('SELECT * FROM playlists WHERE id=?').get(args.id));
+      break;
+    case 'artistGet':
+      reply(db.prepare('SELECT * FROM artists WHERE id=?').get(args.id));
+      break;
+    case 'artistTopTracks':
+      reply(db.prepare(`SELECT t.*, a.name album_name, ar.name artist_name FROM tracks t
+        JOIN albums a ON a.id=t.album_id JOIN artists ar ON ar.id=a.artist_id
+        WHERE a.artist_id=? ORDER BY t.popularity DESC LIMIT 10`).all(args.id));
+      break;
+    case 'albumGet':
+      reply(db.prepare(`SELECT al.*, ar.name artist_name FROM albums al
+        JOIN artists ar ON ar.id=al.artist_id WHERE al.id=?`).get(args.id));
+      break;
+    case 'albumTracks':
+      reply(db.prepare(`SELECT t.*, ar.name artist_name FROM tracks t
+        JOIN albums a ON a.id=t.album_id JOIN artists ar ON ar.id=a.artist_id
+        WHERE t.album_id=? ORDER BY t.rowid`).all(args.id));
       break;
     default:
       ws.sendFrame(0xff, { requestId, error: `unknown_method:${method}` });
